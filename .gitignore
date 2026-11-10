@@ -1,0 +1,58 @@
+# Node.js
+node_modules/
+.pnpm-store/ # For pnpm package manager
+
+# Next.js
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# dotenv environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local # Catch-all for local environment variables
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# macOS specific files
+.DS_Store
+
+# Docker
+.dockerignore # This file itself shouldn't be ignored, but included for context
+*.log
+*.tmp
+tmp/
+!Dockerfile # Ensure Dockerfile is not ignored if placed in a common ignore directory
+!fly.toml # Ensure fly.toml is not ignored
+
+# Database
+*.sql # This might be too broad if you have migration files you want to keep
+# Consider being more specific for SQL files if certain ones (like schema.sql or migrations) should be tracked
+# For example, if you want to ignore only generated SQL dumps, specify them:
+# *.dump
+# dump.sql
+
+# Supabase specific (if any local Supabase artifacts are generated)
+supabase/
+.supabase/
+
+# Miscellaneous
+coverage/
+.DS_Store

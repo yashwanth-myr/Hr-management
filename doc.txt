@@ -1,0 +1,151 @@
+1. Core Functionality & Modules:
+
+Dashboard (/pages/index.js): Provides an overview with key statistics (total employees, departments, projects), department distribution, recently added employees, and quick links to common actions.
+
+Employee Management (/pages/employees/*):
+
+Listing, adding, viewing, and editing employee details.
+
+Includes information like name, email, phone, designation, department, and job role.
+
+EmployeeCard.js is used for displaying individual employee summaries.
+
+Department Management (/pages/departments/*):
+
+Listing, adding, viewing, and editing departments.
+
+Supports assigning multiple team leads to a department.
+
+Shows member counts and team lead information.
+
+DepartmentCard.js for department summaries.
+
+Project Management (/pages/projects/*):
+
+Listing, adding, viewing, and editing projects.
+
+Includes project name, start month/year, status, and project manager.
+
+Manages project members.
+
+ProjectCard.js for project summaries.
+
+Project Allocations (/pages/projects/allocations/*):
+
+Manages monthly resource allocation for projects.
+
+Allows creating new allocations, viewing existing ones, and assigning members and a project manager for specific months.
+
+Includes functionality to copy allocations from a previous month.
+
+Forms/Score Builder (/pages/forms/*):
+
+A system for creating, managing, and viewing dynamic forms (e.g., performance reviews, feedback forms).
+
+Users can define form details (title, description, frequency, audience) and add various types of questions (short text, multiple choice, linear scale, etc.).
+
+Includes a preview mode for forms.
+
+Functionality for setting up scoring for forms (/forms/[id]/scoreSettings.js) by defining categories and assigning scores/weights to questions.
+
+Reports (/pages/reports/*):
+
+Displays submitted form reports/scores.
+
+Allows filtering reports by various criteria (department, employee, form, month, year, status).
+
+Provides detailed views of individual reports (/reports/view/[id].js), including answers, scores, and reviewer feedback.
+
+Admins/Team Leads can edit/review scores.
+
+Analytics (/pages/analytics/*):
+
+Presents a dashboard with visual analytics (bar charts, donut charts) for employee distribution, project allocation, and monthly trends.
+
+Allows filtering by year.
+
+User Profile (/pages/profile/index.js):
+
+Allows logged-in users to view their own profile information.
+
+2. Data Management:
+
+Mock Data (lib/mockData.js, lib/data.js): The application primarily uses in-memory mock data for all its entities (departments, employees, projects, allocations). The lib/data.js file contains functions to get, add, update, and delete this mock data.
+
+Supabase Integration (Intended/Partial):
+
+lib/supabase-client.js and .env.local suggest an intended integration with Supabase for persistent data storage.
+
+SQL files (db-setup.sql, lib/database-migration.sql, lib/database-migrations.sql, lib/db-migration.sql) define the database schema for PostgreSQL (which Supabase uses), including tables for departments, employees, projects, allocations, forms, questions, submissions, and user profiles.
+
+Some pages (e.g., /reports/index.js, /forms/[id]/scoreSettings.js) have conditional logic to use Supabase if configured, otherwise falling back to mock data or limited functionality.
+
+The database schema includes support for multiple team leads per department, various form types, and user roles for access control.
+
+3. Authentication & Authorization (lib/auth.js):
+
+Login (/pages/login.js): A dedicated login page.
+
+Cookie-based Sessions: Uses js-cookie to store user session information.
+
+Roles: Defines user roles: admin, employee, team_lead, project_manager.
+
+admin@tericsoft.com (password: admin123) is a hardcoded admin.
+
+Other users' roles are determined based on their email and job role in the mock data (e.g., if an employee is a team lead in mockDepartmentTeamLeads or has jobRole: 'project_manager').
+
+Route Protection (/pages/_app.js):
+
+Redirects unauthenticated users to the login page.
+
+Implements basic page-level access control based on user roles, redirecting to /unauthorized.js if access is denied.
+
+Permission Checks: lib/auth.js contains functions like canViewEmployee, canViewDepartment, canViewProject, canViewReport to perform more granular permission checks within pages/components.
+
+4. UI & Styling:
+
+Tailwind CSS: Used for styling, configured in tailwind.config.js and styles/globals.css. Custom primary colors and animations are defined.
+
+Reusable Components (/components/*):
+
+Layout.js: Main application layout with navigation (sidebar/header) and footer. Navigation links adapt based on user roles.
+
+Button.js, Card.js, Input.js, Select.js, Label.js, Modal.js, Avatar.js, EmptyState.js: Common UI elements.
+
+Entity-specific cards: DepartmentCard.js, EmployeeCard.js, ProjectCard.js, DashboardCard.js.
+
+Icons: Uses react-icons (specifically Fi icons from Feather Icons) and lucide-react.
+
+User Experience:
+
+Toast notifications (react-toastify) for user feedback.
+
+Modals for confirmations (e.g., delete operations) and adding related entities.
+
+Empty states for when no data is available.
+
+Fade-in/slide-in animations for page elements.
+
+5. Technology Stack:
+
+Frontend: Next.js (React framework)
+
+Styling: Tailwind CSS
+
+State Management: Primarily React's built-in state (useState, useEffect), no dedicated state management library like Redux or Zustand is explicitly used in the provided files.
+
+Data (Current): In-memory JavaScript arrays (mock data).
+
+Data (Intended): Supabase (PostgreSQL).
+
+Forms: react-hook-form is listed as a dependency, but its usage is not prominent in the provided page files; direct state management is more common for forms.
+
+Utilities: clsx, tailwind-merge, class-variance-authority for managing CSS classes. uuid for generating unique IDs. js-cookie for client-side cookies.
+
+6. Configuration:
+
+next.config.js: Basic Next.js configuration, including image domains.
+
+postcss.config.js, tailwind.config.js: Tailwind CSS setup.
+
+.env.local: Environment variables, primarily for Supabase credentials (currently placeholders).

@@ -1,0 +1,571 @@
+<start_code>
+<file path="/lib/postgres.js">
+import pg from 'pg';
+const { Pool } = pg;
+// Global connection pool
+let pool;
+// Function to create and configure connection pool
+function createPool() {
+if (!pool) {
+pool = new Pool({
+connectionString: process.env.DATABASE_URL,
+ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+max: 20, // Maximum number of clients in the pool
+idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection cannot be established
+});
+Copy// Handle pool errors
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+}
+return pool;
+}
+// Get a client from the pool
+async function getClient() {
+const pool = createPool();
+return await pool.connect();
+}
+// Execute a query with the pool
+async function query(text, params) {
+const pool = createPool();
+const start = Date.now();
+try {
+const res = await pool.query(text, params);
+const duration = Date.now() - start;
+Copy// Log query for debugging (remove in production)
+if (process.env.NODE_ENV === 'development') {
+  console.log('Executed query', { text: text.substring(0, 100) + '...', duration, rows: res.rowCount });
+}
+
+return res;
+} catch (error) {
+console.error('Database query error:', error);
+throw error;
+}
+}
+// Close the pool (usually called when the application shuts down)
+async function closePool() {
+if (pool) {
+await pool.end();
+pool = null;
+}
+}
+// Test database connection
+async function testConnection() {
+try {
+const result = await query('SELECT NOW()');
+console.log('Database connection successful:', result.rows[0]);
+return true;
+} catch (error) {
+console.error('Database connection failed:', error);
+return false;
+}
+}
+// Execute schema setup
+async function setupDatabase() {
+try {
+// Check if tables exist
+const result = await query(      SELECT table_name        FROM information_schema.tables        WHERE table_schema = 'public'        AND table_name = 'employees'    );
+Copyif (result.rows.length === 0) {
+  console.log('Database tables not found. Please run the schema setup first.');
+  return false;
+}
+
+console.log('Database schema is already set up.');
+return true;
+} catch (error) {
+console.error('Error checking database schema:', error);
+return false;
+}
+}
+module.exports = {
+getClient,
+query,
+closePool,
+testConnection,
+setupDatabase
+};
+</file>
+<file path="/pages/api/verify-otp.js">
+import { query } from '../../lib/postgres';
+export default async function handler(req, res) {
+if (req.method !== 'POST') {
+return res.status(405).json({ message: 'Method not allowed' });
+}
+const { email, otp } = req.body;
+if (!email || !otp) {
+return res.status(400).json({ message: 'Email and OTP are required' });
+}
+let client;
+try {
+// Get the OTP record
+const result = await query(
+'SELECT * FROM otps WHERE email = $1 ORDER BY created_at DESC LIMIT 1',
+[email]
+);
+Copyconst otpRecord = result.rows[0];
+
+if (!otpRecord) {
+  return res.status(400).json({ message: 'No OTP found for this email' });
+}
+
+// Check if OTP is expired (10 minutes)
+const otpCreatedAt = new Date(otpRecord.created_at);
+const currentTime = new Date();
+const timeDiff = (currentTime - otpCreatedAt) / (1000 * 60); // in minutes
+
+if (timeDiff > 10) {
+  return res.status(400).json({ message: 'OTP has expired. Please request a new one' });
+}
+
+// Check if too many attempts
+if (otpRecord.attempts >= 3) {
+  return res.status(400).json({ message: 'Too many attempts. Please request a new OTP' });
+}
+
+// Check if OTP matches
+if (otpRecord.otp !== otp) {
+  // Increment attempts
+  await query(
+    'UPDATE otps SET attempts = attempts + 1 WHERE id = $1',
+    [otpRecord.id]
+  );
+
+  return res.status(400).json({ message: 'Invalid OTP' });
+}
+
+// OTP is valid, delete it
+await query('DELETE FROM otps WHERE id = $1', [otpRecord.id]);
+
+res.status(200).json({ message: 'OTP verified successfully' });
+} catch (error) {
+console.error('Verify OTP Error:', {
+message: error.message,
+stack: error.stack,
+code: error.code
+});
+res.status(500).json({
+message: 'Failed to verify OTP',
+error: error.message
+});
+}
+}
+</file>
+<file path="/pages/departments/[id]/index.js">
+// Add this function in the component to handle removing team leads properly
+// Update the handleRemoveTeamLead function in the DepartmentDetails component
+const handleRemoveTeamLead = async () => {
+if (!teamLeadToRemove) return;
+try {
+const response = await fetch(/api/departments/${id}/team-leads/${teamLeadToRemove.id}, {
+method: 'DELETE',
+});
+Copyif (response.ok) {
+  // Update local state to remove the team lead
+  setTeamLeads(prevTeamLeads => 
+    prevTeamLeads.filter(lead => lead.id !== teamLeadToRemove.id)
+  );
+  toast.success(`${teamLeadToRemove.name} has been removed as a team lead`);
+  setIsRemoveTeamLeadModalOpen(false);
+} else {
+  const error = await response.json();
+  throw new Error(error.message || 'Failed to remove team lead');
+}
+} catch (error) {
+console.error('Failed to remove team lead:', error);
+toast.error('Failed to remove team lead');
+}
+}
+</file>
+<file path="/pages/api/departments/[id]/team-leads/[leadId].js">
+import { query } from '../../../../../lib/postgres';
+export default async function handler(req, res) {
+const { id, leadId } = req.query;
+if (req.method === 'DELETE') {
+try {
+// Delete the team lead association from department_team_leads table
+const result = await query(
+'DELETE FROM department_team_leads WHERE department_id = $1 AND employee_id = $2 RETURNING *',
+[id, leadId]
+);
+Copy  if (result.rowCount === 0) {
+    return res.status(404).json({ error: 'Team lead association not found' });
+  }
+
+  res.status(200).json({ message: 'Team lead removed successfully' });
+} catch (error) {
+  console.error('Error removing team lead:', error);
+  res.status(500).json({ error: 'Failed to remove team lead' });
+}
+} else {
+res.setHeader('Allow', ['DELETE']);
+res.status(405).end(Method ${req.method} Not Allowed);
+}
+}
+</file>
+<file path="/pages/api/departments/[id]/employees.js">
+import { query } from '../../../../lib/postgres';
+export default async function handler(req, res) {
+const { id } = req.query;
+if (req.method === 'GET') {
+try {
+const result = await query(
+SELECT e.*           FROM employees e          WHERE e.department_id = $1 OR e.departmentId = $1          ORDER BY e.name ASC,
+[id]
+);
+Copy  res.status(200).json(result.rows);
+} catch (error) {
+  console.error('Error fetching department employees:', error);
+  res.status(500).json({ error: 'Failed to fetch department employees' });
+}
+} else if (req.method === 'POST') {
+try {
+const { employeeId } = req.body;
+Copy  if (!employeeId) {
+    return res.status(400).json({ error: 'Employee ID is required' });
+  }
+
+  // Update employee's department
+  const result = await query(
+    `UPDATE employees 
+     SET department_id = $1, departmentId = $1, updated_at = NOW() 
+     WHERE id = $2 
+     RETURNING *`,
+    [id, employeeId]
+  );
+
+  if (result.rowCount === 0) {
+    return res.status(404).json({ error: 'Employee not found' });
+  }
+
+  res.status(200).json(result.rows[0]);
+} catch (error) {
+  console.error('Error adding employee to department:', error);
+  res.status(500).json({ error: 'Failed to add employee to department' });
+}
+} else {
+res.setHeader('Allow', ['GET', 'POST']);
+res.status(405).end(Method ${req.method} Not Allowed);
+}
+}
+</file>
+<file path="/pages/projects/[id]/edit.js">
+// Fix for the project update functionality
+// Update the handleSubmit function in the EditProject component
+const handleSubmit = async (e) => {
+e.preventDefault();
+if (!validateForm()) return;
+setIsSubmitting(true);
+try {
+// Ensure we're sending all required data
+const dataToUpdate = {
+name: formData.name,
+startMonth: formData.startMonth,
+startYear: formData.startYear,
+status: formData.status || 'active',
+projectManagerId: formData.projectManagerId || null
+};
+Copyconst response = await fetch(`/api/projects/${id}`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(dataToUpdate),
+});
+
+if (response.ok) {
+  const updatedProject = await response.json();
+  toast.success(`Project "${updatedProject.name}" has been updated`);
+  router.push(`/projects/${id}`);
+} else {
+  const error = await response.json();
+  throw new Error(error.error || 'Failed to update project');
+}
+} catch (error) {
+console.error('Failed to update project:', error);
+toast.error('Failed to update project: ' + error.message);
+} finally {
+setIsSubmitting(false);
+}
+};
+</file>
+<file path="/lib/data.js">
+import { query } from './postgres';
+// Add this function to properly update projects
+export async function updateProject(id, projectData) {
+try {
+const result = await query(
+UPDATE projects        SET name = $1,            start_month = $2,            start_year = $3,            status = $4,            project_manager_id = $5,            updated_at = NOW()        WHERE id = $6        RETURNING *,
+[
+projectData.name,
+projectData.startMonth,
+projectData.startYear,
+projectData.status,
+projectData.projectManagerId,
+id
+]
+);
+Copyif (result.rowCount === 0) {
+  return null;
+}
+
+return result.rows[0];
+} catch (error) {
+console.error('Error updating project:', error);
+throw error;
+}
+}
+// Get department by ID
+export async function getDepartmentById(id) {
+try {
+const result = await query(
+'SELECT * FROM departments WHERE id = $1',
+[id]
+);
+Copyif (result.rows.length === 0) {
+  return null;
+}
+
+return result.rows[0];
+} catch (error) {
+console.error('Error fetching department:', error);
+throw error;
+}
+}
+// Get department members
+export async function getDepartmentMembers(departmentId) {
+try {
+const result = await query(
+SELECT * FROM employees         WHERE department_id = $1 OR departmentId = $1        ORDER BY name ASC,
+[departmentId]
+);
+Copyreturn result.rows;
+} catch (error) {
+console.error('Error fetching department members:', error);
+throw error;
+}
+}
+// Get department team leads
+export async function getDepartmentTeamLeads(departmentId) {
+try {
+const result = await query(
+SELECT e.*         FROM employees e        JOIN department_team_leads dtl ON e.id = dtl.employee_id        WHERE dtl.department_id = $1        ORDER BY e.name ASC,
+[departmentId]
+);
+Copyreturn result.rows;
+} catch (error) {
+console.error('Error fetching department team leads:', error);
+throw error;
+}
+}
+// Get all employees
+export async function getEmployees() {
+try {
+const result = await query(
+'SELECT * FROM employees ORDER BY name ASC'
+);
+Copyreturn result.rows;
+} catch (error) {
+console.error('Error fetching employees:', error);
+throw error;
+}
+}
+// Get project by ID
+export async function getProjectById(id) {
+try {
+const result = await query(
+'SELECT * FROM projects WHERE id = $1',
+[id]
+);
+Copyif (result.rows.length === 0) {
+  return null;
+}
+
+return result.rows[0];
+} catch (error) {
+console.error('Error fetching project:', error);
+throw error;
+}
+}
+// Get project managers
+export async function getProjectManagers() {
+try {
+const result = await query(
+SELECT * FROM employees         WHERE job_role = 'Project Manager' OR job_role = 'PM'        ORDER BY name ASC
+);
+Copyreturn result.rows;
+} catch (error) {
+console.error('Error fetching project managers:', error);
+throw error;
+}
+}
+</file>
+<file path="/pages/forms/[id]/preview.js">
+// Fix for form preview functionality
+// Modify the existing form preview page to handle submissions properly
+// Add this import at the top of the file
+import { useState } from 'react';
+import { toast } from 'react-toastify';
+import { useRouter } from 'next/router';
+// Add these state variables to your component
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [isPreviewSubmitted, setIsPreviewSubmitted] = useState(false);
+const router = useRouter();
+// Replace the handleSubmit function with this implementation
+const handleSubmit = async (e) => {
+e.preventDefault();
+if (!validateForm()) {
+toast.error('Please fill in all required fields');
+return;
+}
+// In preview mode, we just show a success message
+setIsSubmitting(true);
+try {
+// For preview mode, just simulate a successful submission
+setTimeout(() => {
+setIsPreviewSubmitted(true);
+setIsSubmitting(false);
+toast.success('Form preview submitted successfully!');
+}, 1000);
+} catch (error) {
+console.error('Error submitting form:', error);
+toast.error('Failed to submit form');
+setIsSubmitting(false);
+}
+};
+// Add this to your component JSX to show a success message after preview submission
+{isPreviewSubmitted && (
+  <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mt-6">
+    <div className="flex">
+      <div className="flex-shrink-0">
+        <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="ml-3">
+        <h3 className="text-sm font-medium">Form Preview Submitted</h3>
+        <div className="mt-2 text-sm">
+          <p>This was a preview submission. In a real form, the data would be saved to the database.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+</file>
+<file path="/db/schema.sql">
+-- Create otps table for OTP verification
+CREATE TABLE IF NOT EXISTS otps (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL,
+  otp VARCHAR(6) NOT NULL,
+  attempts INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  -- Add expiration for automatic cleanup
+  CONSTRAINT otps_email_key UNIQUE (email)
+);
+-- Create index on created_at for performance
+CREATE INDEX IF NOT EXISTS idx_otps_created_at ON otps(created_at);
+-- Create index on email for faster lookups
+CREATE INDEX IF NOT EXISTS idx_otps_email ON otps(email);
+-- Create employees table if it doesn't exist
+CREATE TABLE IF NOT EXISTS employees (
+id SERIAL PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+email VARCHAR(255) NOT NULL UNIQUE,
+phone_number VARCHAR(20),
+phoneNumber VARCHAR(20),
+designation VARCHAR(100),
+department_id INTEGER,
+departmentId INTEGER,
+job_role VARCHAR(100),
+jobRole VARCHAR(100),
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- Create departments table if it doesn't exist
+CREATE TABLE IF NOT EXISTS departments (
+id SERIAL PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+-- Create department_team_leads table for many-to-many relationship
+CREATE TABLE IF NOT EXISTS department_team_leads (
+id SERIAL PRIMARY KEY,
+department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+UNIQUE(department_id, employee_id)
+);
+-- Create projects table if it doesn't exist
+CREATE TABLE IF NOT EXISTS projects (
+id SERIAL PRIMARY KEY,
+name VARCHAR(255) NOT NULL,
+start_month VARCHAR(2),
+start_year VARCHAR(4),
+status VARCHAR(20) DEFAULT 'active',
+project_manager_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+</file>
+<file path="/pages/api/send-otp.js">
+import { query } from '../../lib/postgres';
+import { createClient } from '@supabase/supabase-js';
+// Create Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Function to generate a 6-digit OTP
+const generateOTP = () => {
+return Math.floor(100000 + Math.random() * 900000).toString();
+};
+export default async function handler(req, res) {
+if (req.method !== 'POST') {
+return res.status(405).json({ message: 'Method not allowed' });
+}
+const { email } = req.body;
+if (!email) {
+return res.status(400).json({ message: 'Email is required' });
+}
+try {
+// Generate a new OTP
+const otp = generateOTP();
+Copy// Delete any existing OTPs for this email
+await query('DELETE FROM otps WHERE email = $1', [email]);
+
+// Store the new OTP in the database
+await query(
+  'INSERT INTO otps (email, otp, attempts) VALUES ($1, $2, $3)',
+  [email, otp, 0]
+);
+
+// Send email with OTP
+const { error } = await supabase.functions.invoke('send-email', {
+  body: {
+    to: email,
+    subject: 'Your OTP for verification',
+    html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code will expire in 10 minutes.</p>`,
+  },
+});
+
+if (error) {
+  console.error('Error sending email:', error);
+  return res.status(500).json({ message: 'Failed to send OTP email' });
+}
+
+// For development, log the OTP (remove in production)
+if (process.env.NODE_ENV === 'development') {
+  console.log(`OTP for ${email}: ${otp}`);
+}
+
+res.status(200).json({ message: 'OTP sent successfully' });
+} catch (error) {
+console.error('Send OTP Error:', error);
+res.status(500).json({ message: 'Failed to send OTP', error: error.message });
+}
+}
+</file>
+</start_code>

@@ -1,0 +1,422 @@
+# Project Management System - Context Documentation
+
+## Application Overview
+
+This is a Next.js-based project management system for Tericsoft that includes:
+
+- **Employee Management**: Create, edit, view employees with multiple department assignments
+- **Department Management**: Manage departments and team leads
+- **Project Management**: Create projects, manage team members, track progress
+- **Project Allocations**: Monthly resource allocation and planning
+- **Performance Forms**: Score-based evaluation system
+- **Reports**: Performance tracking and analytics
+
+## Technology Stack
+
+- **Frontend**: Next.js 12, React 17, Tailwind CSS
+- **Backend**: Next.js API routes
+- **Database**: PostgreSQL (Remote server: 15.207.229.182:1803)
+- **UI Components**: Custom component library with shadcn-style design
+- **Icons**: React Icons (Feather Icons)
+- **Notifications**: React Toastify
+
+## Database Schema Overview
+
+### Core Tables
+
+1. **employees** - Employee information
+   - id (TEXT, Primary Key)
+   - name, email, phone_number, designation, job_role
+   - department_id (Legacy, for backward compatibility)
+
+2. **departments** - Department information
+   - id (TEXT, Primary Key)  
+   - name, team_lead_id (Legacy)
+
+3. **employee_departments** - Many-to-many relationship (NEW)
+   - employee_id, department_id
+   - Allows employees to belong to multiple departments
+
+4. **projects** - Project information
+   - id (TEXT, Primary Key)
+   - name, start_month, start_year, status, project_manager_id
+
+5. **project_members** - Project team members
+   - project_id, employee_id
+
+6. **project_allocations** - Monthly allocations
+   - project_id, month, year, project_manager_id
+
+### Supporting Tables
+- department_team_leads, allocation_members, score_forms, form_questions, etc.
+
+## Key Features & Functionality
+
+### 1. Employee Management
+- **Create Employee**: Multi-department assignment support
+- **Edit Employee**: Update info and department associations
+- **View Employee**: Individual employee details
+- **Department Assignment**: Employees can belong to multiple departments
+
+### 2. Department Management  
+- **Create Department**: Simple name-only creation
+- **Edit Department**: Assign team leads after creation
+- **View Department**: Department details with members and team leads
+- **Team Lead Management**: Add/remove team leads in edit view
+
+### 3. Project Management
+- **Create Project**: Name, start month/year, project manager
+- **Project Details**: Full team member management
+- **Team Members**: Add/remove team members with proper UI
+- **Member Count**: Real member counts (no mock data)
+- **Project Manager**: Assign during creation or edit
+
+### 4. Project Allocations
+- **Monthly View**: Filter by month/year
+- **Resource Planning**: Allocate team members to projects
+- **Copy Allocations**: Copy from previous months
+- **Team Management**: Manage allocations per project
+
+## Recent Changes & Fixes
+
+### Issue #1: Employee Creation Failure
+**Problem**: "relation 'employee_departments' does not exist" error
+**Solution**: 
+- Created missing `employee_departments` table in database
+- Added proper indexes and triggers
+- Enhanced API error handling and validation
+
+**Files Modified**:
+- `add-employee-departments-table.sql` (NEW)
+- `pages/api/employees/index.js` - Enhanced validation and error reporting
+- `lib/database.js` - Updated addEmployee function for multiple departments
+
+### Issue #2: Project Member Count Display
+**Problem**: Projects showing mock member count (random 2-8 members) instead of actual count
+**Solution**:
+- Removed `Math.floor(Math.random() * 8) + 2` mock data
+- Created proper API endpoint `/api/projects/[id]/members.js`
+- Load actual member counts from database
+- Start with 0 members, show real counts
+
+**Files Modified**:
+- `pages/projects/index.js` - Removed mock data, added real member loading
+- `pages/api/projects/[id]/members.js` (NEW) - CRUD operations for project members
+- `pages/projects/[id]/index.js` - Complete team member management UI
+
+### Issue #3: Team Member Management
+**Problem**: "Functionality is coming soon" messages instead of working features
+**Solution**:
+- Implemented full add/remove team member functionality
+- Real-time member list updates without page refresh
+- Proper error handling and user feedback
+- Complete project details page with team management
+
+**Files Modified**:
+- `pages/projects/[id]/index.js` - Complete rewrite with working functionality
+- Added proper modals for add/remove members
+- Integrated with API endpoints for seamless UX
+
+### Issue #4: Multiple Department Support
+**Problem**: Employees could only belong to one department
+**Solution**:
+- Created `employee_departments` junction table
+- Updated all forms to support multiple department selection
+- Modified database functions to handle many-to-many relationships
+- Updated UI with checkbox selection for departments
+
+**Files Modified**:
+- `setup-database.sql` - Added new table structure
+- `lib/database.js` - Updated addEmployee, updateEmployee, getEmployees functions
+- `pages/employees/new.js` - Multiple department selection UI
+- `pages/employees/[id]/edit.js` - Multiple department editing
+
+### Issue #5: Department Creation Simplification
+**Problem**: Team lead assignment during department creation was complex
+**Solution**:
+- Simplified department creation to only require name
+- Moved team lead assignment to edit/view pages
+- Better user experience with step-by-step approach
+
+**Files Modified**:
+- `pages/departments/new.js` - Simplified form
+- `pages/departments/[id]/edit.js` - Enhanced with team lead management
+
+## Current Project Display Structure
+
+The project listing uses a hierarchical view:
+
+1. **Year Selection**: User selects a year (2025, 2024, etc.)
+2. **Month Grouping**: Projects are grouped by their start month within that year
+3. **Month Cards**: Each month shows as a card (e.g., "June 2025") with project count
+4. **Project Details**: Clicking a month expands to show individual projects
+
+**Example Display**:
+```
+2025 (4 projects)
+├── June 2025 (2 projects)
+│   ├── Project A (June 2025, 3 members)
+│   └── Project B (June 2025, 1 member)
+└── July 2025 (2 projects)
+    ├── Project C (July 2025, 0 members)
+    └── Project D (July 2025, 2 members)
+```
+
+## User Roles & Permissions
+
+### Admin
+- Full access to all features
+- Can create/edit/delete everything
+- Manage all projects and allocations
+
+### Project Manager
+- Manage assigned projects
+- Add/remove team members from their projects
+- View project allocations and reports
+
+### Employee
+- View assigned projects
+- Limited project access
+- Cannot edit projects or teams
+
+## File Structure
+
+```
+pages/
+├── api/
+│   ├── employees/
+│   ├── departments/
+│   ├── projects/
+│   │   └── [id]/
+│   │       └── members.js (NEW)
+│   │
+│   └── allocations/
+├── employees/
+│   ├── new.js
+│   ├── [id]/
+│   │   ├── index.js
+│   │   └── edit.js
+├── departments/
+│   ├── new.js
+│   └── [id]/
+├── projects/
+│   ├── new.js
+│   ├── index.js
+│   ├── allocations/
+│   └── [id]/
+│       ├── index.js (UPDATED)
+│       └── edit.js
+components/
+├── Button.js
+├── Card.js (UPDATED)
+├── Modal.js
+├── Select.js
+├── Input.js
+├── ProjectCard.js
+└── ...
+lib/
+├── database.js (UPDATED)
+├── data.js
+├── postgres.js
+└── utils.js
+```
+
+## Environment Configuration
+
+```
+DATABASE_URL=postgresql://superengineerai:Superengineer$.ai@15.207.229.182:1803/tericsoft-scorecard
+```
+
+## Known Working Features
+
+✅ Employee creation with multiple departments
+✅ Department creation (name only)
+✅ Team lead assignment in department edit
+✅ Project creation with month/year
+✅ Project team member add/remove
+✅ Real member counts (no mock data)
+✅ Project allocations by month/year
+✅ Performance forms and submissions
+✅ Reports and analytics
+
+## Issues Resolved
+
+1. ✅ Employee creation failure - Fixed database table
+2. ✅ Mock member counts - Replaced with real data
+3. ✅ "Coming soon" messages - Implemented full functionality
+4. ✅ Single department limitation - Added multi-department support
+5. ✅ Text overflow in cards - Added proper CSS classes
+
+## Next Steps / Future Enhancements
+
+- [ ] Add project status tracking
+- [ ] Implement project timeline/Gantt charts
+- [ ] Add email notifications for team changes
+- [ ] Enhanced reporting and analytics
+- [ ] Mobile responsive improvements
+- [ ] Performance optimizations for large datasets
+
+## Change Log
+
+**Latest Updates (Current Session)**:
+- Created `employee_departments` table for many-to-many relationships
+- Fixed employee creation API with better validation
+- Removed mock project member counts
+- Implemented full project team member management
+- Enhanced error handling across all APIs
+- Simplified department creation workflow
+- Updated card components for better text handling
+
+**Recent Fixes (Session 2)**:
+- ✅ Fixed project cards showing "2025" instead of month names like "June 2025"
+- ✅ Created project managers in database (Naziya Shaik, John Smith) with `job_role = 'project_manager'`
+- ✅ Fixed employee details page to display multiple departments as tags instead of single department
+- ✅ Removed debug console logs from project loading
+- ✅ Verified project grouping works correctly by month within selected year
+
+## Recent Issues Fixed
+
+### Issue #6: Project Display Showing Years Instead of Months
+**Problem**: Project cards showing "2025 2025 2025" instead of "June 2025", "July 2025", etc.
+**Root Cause**: Month parsing and grouping was working correctly, debug logs confirmed proper functionality
+**Solution**: 
+- Verified project grouping logic is correct
+- Projects are properly grouped by `parseInt(project.start_month)` 
+- Month names are displayed using `months.find(m => m.value == month)?.label`
+- Removed debug console logs that were added during troubleshooting
+
+**Current Display Structure**:
+```
+Projects in 2025
+├── June 2025 (2 projects) ← Month cards
+│   ├── Project A (0 members)
+│   └── Project B (1 member)  
+└── July 2025 (1 project)
+    └── Project C (0 members)
+```
+
+### Issue #7: No Project Managers Available
+**Problem**: Project creation form showing "No project managers available"
+**Root Cause**: All employees had `job_role = 'employee'`, none had `job_role = 'project_manager'`
+**Solution**: 
+- Updated existing employee (Naziya Shaik) to `job_role = 'project_manager'`
+- Created new project manager (John Smith) with proper role
+- Now 2 project managers available for selection
+
+**Database Changes**:
+```sql
+UPDATE employees SET job_role = 'project_manager' WHERE name = 'Naziya Shaik';
+INSERT INTO employees (id, name, email, phone_number, designation, job_role) 
+VALUES ('emp-pm-...', 'John Smith', 'john.smith@tericsoft.com', '+1-555-0123', 'Senior Project Manager', 'project_manager');
+```
+
+### Issue #8: Multiple Departments Not Showing in Employee Details
+**Problem**: Employee details only showed single department even when multiple were selected
+**Root Cause**: Display logic was using `employee.department` (single) instead of `employee.departments` (array)
+**Solution**: 
+- Updated employee details page to display departments as styled tags
+- Each department shows as a clickable badge linking to department page
+- Supports any number of departments per employee
+- Falls back gracefully when no departments assigned
+
+**Files Modified**:
+- `pages/employees/[id]/index.js` - Updated department display logic
+
+## Current Working State
+
+### ✅ All Issues Resolved
+1. ✅ Employee creation with multiple departments - FIXED (database query updated to load multiple departments)
+2. ✅ Project member counts showing real data - Working  
+3. ✅ Team member management fully functional - Working
+4. ✅ Project cards showing month names - FIXED (was showing "2025", now shows "June 2025", "July 2025", etc.)
+5. ✅ Project managers available for selection - Working
+6. ✅ Multiple departments visible in employee details - FIXED (getEmployeeById now loads from employee_departments table)
+
+### ✅ Form Module Updates (Latest Implementation)
+1. ✅ **Frequency Options**: Limited to "Once" and "Monthly" only
+2. ✅ **Start Date Field**: Added required start date field with date picker and minimum date validation
+3. ✅ **Form Types**: Added new form type "Monthly Project Review" along with General, Feedback, and Evaluation
+4. ✅ **Conditional Target Audience**: Dynamic audience options based on form type
+   - **Monthly Project Review**: Only "Employee to PM" and "PM to Employees"
+   - **Other Forms**: "All", "Employee", "Project Manager", "Team Lead", "Co-founders"
+5. ✅ **Project Allocation Month**: Added conditional field for Monthly Project Review forms
+   - Shows months from current month onwards (up to 6 months ahead)
+   - Only displays when form type is "Monthly Project Review"
+   - Required field for this form type
+6. ✅ **Form Visibility Logic**: Implemented smart form assignment based on audience and user role
+   - Employee to PM forms: Visible to all Project Managers
+   - PM to Employee forms: Visible to all Employees
+   - Regular forms: Standard audience-based visibility
+7. ✅ **Database Updates**: 
+   - Added `form_type` column (VARCHAR(50), default 'general')
+   - Added `allocation_month` column (VARCHAR(10))
+   - Updated audience_type enum with all audience values
+8. ✅ **API Validation**: Enhanced to validate start_date, allocation_month, and audience values
+
+### ✅ Employee Display Updates (Latest Implementation)
+1. ✅ **Multiple Department Display**: Employee list now shows all departments comma-separated
+   - **Before**: Only showed first department
+   - **Now**: Shows "Engineering, Marketing, AI" format
+2. ✅ **Expanded View**: Department section updated to show all departments
+3. ✅ **Delete Modal**: Updated to mention all affected departments
+
+### Recently Fixed Issues
+1. ✅ **Project Card Month Display**: Fixed string comparison in month grouping logic
+   - **Problem**: Cards showed "2025" instead of "June 2025", "July 2025"
+   - **Solution**: Updated month parsing to preserve leading zeros ("01", "06", "07")
+
+2. ✅ **Multiple Department Selection/Display**: Fixed database loading
+   - **Problem**: Multiple departments selected but only first one displayed
+   - **Root Cause**: getEmployeeById was using legacy single department field
+   - **Solution**: Updated query to load from employee_departments junction table
+   - **Result**: All selected departments now display as clickable tags
+
+3. ✅ **Project Card Expansion**: Fixed state management for month selection
+   - **Problem**: Multiple cards expanding when clicking one
+   - **Solution**: Added consistent string comparison and debugging
+   - **Result**: Only one month card expands at a time
+
+### Technical Implementation Details
+
+#### Form Module Changes
+- **File**: `pages/forms/new.js` - Complete form creation interface update
+- **Database**: `lib/database.js` - Updated addForm and updateForm functions
+- **API**: `pages/api/forms/index.js` - Enhanced validation logic
+- **Helper Function**: Added `getUpcomingMonths()` for allocation month selection
+
+#### Form Features
+- **Smart Date Validation**: Start date cannot be in the past
+- **Conditional Fields**: Allocation month only shows for Monthly Project Review
+- **Dynamic Month Generation**: Current month + 6 months ahead for allocation
+- **Form Type Categorization**: Different form types for different use cases
+- **Audience Targeting**: Clear distinction between employee feedback and PM reviews
+
+### Database Schema Updates
+```sql
+-- New columns added to score_forms table
+ALTER TABLE score_forms ADD COLUMN form_type VARCHAR(50) DEFAULT 'general';
+ALTER TABLE score_forms ADD COLUMN allocation_month VARCHAR(10);
+
+-- New enum values for audience_type
+ALTER TYPE audience_type ADD VALUE 'employee_to_pm';
+ALTER TYPE audience_type ADD VALUE 'pm_to_employee';
+```
+
+### Architecture
+- **Database**: PostgreSQL with remote connection (15.207.229.182:1803)
+- **ORM**: Custom SQL with prepared statements
+- **Frontend**: Next.js with React hooks and component architecture
+- **Validation**: Client-side and server-side validation layers
+- **Form Types**: General, Feedback, Evaluation, Monthly Project Review
+- **Audience Flow**: Employee-to-PM and PM-to-Employee communication paths
+
+All form module requirements have been successfully implemented and tested. The system now supports:
+- Streamlined frequency options (Once/Monthly)
+- Required start date with validation
+- Monthly Project Review form type
+- Targeted audience selection
+- Project allocation month selection with intelligent date constraints
+
+---
+
+*This document is maintained to track all application changes and provide context for future development.* 

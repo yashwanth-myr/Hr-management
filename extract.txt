@@ -1,0 +1,21 @@
+<answer>
+{
+  "lib/postgres.js": "This file contains the PostgreSQL connection code and is throwing the error 'pg is not defined'. Need to fix the import syntax to be compatible with Next.js (changing require to import or ensuring proper bundling).",
+"package.json": "Need to verify the 'pg' package is properly listed as a dependency since the error suggests it might be missing or not correctly configured.",
+"pages/api/verify-otp.js": "This endpoint handles OTP verification which is failing for non-admin users. Need to debug the verification logic.",
+"lib/otp.js": "Contains the OTP generation and verification logic that needs to be fixed for non-admin users.",
+"pages/departments/[id]/edit.js": "Page where team lead removal functionality is failing. Need to fix the team lead removal logic.",
+"pages/api/departments/[id].js": "API endpoint for updating department details including team lead information.",
+"components/DepartmentCard.js": "Component that likely displays department information including team lead. May need updates to handle team lead removal correctly.",
+"pages/departments/[id]/index.js": "The department detail page where the employee list is not loading correctly when adding employees.",
+"pages/api/employees/index.js": "API endpoint for fetching employees that might be failing when adding employees to departments.",
+"pages/projects/[id]/edit.js": "Project edit page where the update functionality is failing.",
+"pages/api/projects/[id].js": "API endpoint for updating project details that's not working correctly.",
+"pages/forms/[id]/preview.js": "Form preview page that users cannot access. Need to fix rendering or permissions.",
+"lib/auth.js": "Authentication logic that might be affecting OTP verification for non-admin users.",
+"models/OTP.js": "OTP model that might contain validation logic that's failing for non-admin users.",
+"scripts/verify-otp.js": "Script related to OTP verification that might provide insight into the failing verification process.",
+"lib/dbConnect.js": "Database connection utility that might be affecting various database operations.",
+"lib/supabase.js": "If using Supabase for authentication, this file might need updates for proper OTP handling."
+}
+</answer>
